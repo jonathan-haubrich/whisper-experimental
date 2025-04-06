@@ -1,0 +1,10 @@
+[package]
+name = "pmr_dll"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+pmr = { path = "../poor-mans-rpc" }
