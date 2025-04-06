@@ -1,3 +1,4 @@
+#![allow(warnings)]
 pub fn hello_world(msg: String) -> String {
     format!("Hello, {msg}!")
 }
@@ -10,9 +11,10 @@ pub trait Dispatcher {
     fn func3(arg1: String, arg2: u64) -> String;
 }
 
-pub struct Dispatch {}
+pub struct TestDispatch {}
 
-impl Dispatcher for Dispatch {
+#[pmr::dispatcher]
+impl Dispatcher for TestDispatch {
     fn func1() {
         println!("Dispatch::func1")
     }
@@ -30,80 +32,80 @@ impl Dispatcher for Dispatch {
     }
 }
 
-fn get_random_string(len: usize) -> String {
-    use rand::Rng;
-    let mut rng = rand::rng();
+#[allow(non_snake_case)]
+pub mod __Dispatch_mod {
 
-    // String:
-    (&mut rng)
-        .sample_iter(rand::distr::Alphanumeric)
-        .take(len)
-        .map(char::from)
-        .collect()
-}
+    fn get_random_alphanum(len: usize) -> Vec<u8> {
+        use rand::Rng;
+        let mut rng = rand::rng();
 
-fn __stub_function_template(args: Vec<u8>) -> Vec<u8> {
-    let formatted = format!("__stub_function_template called with args: {:?}", args);
+        // String:
+        (&mut rng)
+            .sample_iter(rand::distr::Alphanumeric)
+            .take(len)
+            .collect()
+    }
 
-    formatted.as_bytes().to_vec()
-}
+    fn __stub_function_template(args: Vec<u8>) -> Vec<u8> {
+        let formatted = format!("__stub_function_template called with args: {:?}", args);
 
-type StubFn = fn(Vec<u8>) -> Vec<u8>;
+        formatted.as_bytes().to_vec()
+    }
 
-fn init_dispatch_map() -> std::collections::HashMap<String, StubFn> {
-    std::collections::HashMap::from([(get_random_string(16), __stub_function_template as StubFn)])
-}
+    type StubFn = fn(Vec<u8>) -> Vec<u8>;
 
-fn get_dispatch_map() -> &'static std::sync::Mutex<std::collections::HashMap<String, StubFn>> {
-    static DISPATCH_MAP: std::sync::OnceLock<
-        std::sync::Mutex<std::collections::HashMap<String, StubFn>>,
-    > = std::sync::OnceLock::new();
-    DISPATCH_MAP.get_or_init(|| std::sync::Mutex::new(init_dispatch_map()))
-}
+    fn init_dispatch_map() -> std::vec::Vec<StubFn> {
+        std::vec![__stub_function_template as StubFn]
+    }
 
-enum DispatchError {
-    Success = 0,
-    UnknownFunction = 1,
-    MapMutexFailure = 2,
-}
+    pub fn get_dispatch_map() -> &'static std::sync::Mutex<std::vec::Vec<StubFn>> {
+        static DISPATCH_MAP: std::sync::OnceLock<std::sync::Mutex<std::vec::Vec<StubFn>>> =
+            std::sync::OnceLock::new();
+        DISPATCH_MAP.get_or_init(|| std::sync::Mutex::new(init_dispatch_map()))
+    }
 
-fn dispatch_call(id: String, args: Vec<u8>) -> Vec<u8> {
-    let dispatch_map = get_dispatch_map();
-
-    match dispatch_map.lock() {
-        Ok(dm) => match dm.get(&id) {
-            Some(stub_fn) => stub_fn(args),
-            None => vec![DispatchError::UnknownFunction as u8],
-        },
-        Err(_) => std::vec![DispatchError::MapMutexFailure as u8],
+    pub enum DispatchError {
+        Success = 0,
+        UnknownFunction = 1,
+        MapMutexFailure = 2,
     }
 }
 
-fn init() -> Vec<Vec<u8>> {
-    let dispatch_map = get_dispatch_map();
+pub extern "C" fn dispatch_call(id: usize, args: Vec<u8>) -> Vec<u8> {
+    println!("id in dispatch_call: {:?}", id);
+    let dispatch_map = __Dispatch_mod::get_dispatch_map();
+
+    let ret = match dispatch_map.lock() {
+        Ok(dm) => match dm.get(id) {
+            Some(stub_fn) => stub_fn(args),
+            None => vec![__Dispatch_mod::DispatchError::UnknownFunction as u8],
+        },
+        Err(_) => std::vec![__Dispatch_mod::DispatchError::MapMutexFailure as u8],
+    };
+
+    ret
+}
+
+pub extern "C" fn init() -> Vec<usize> {
+    let dispatch_map = __Dispatch_mod::get_dispatch_map();
     let mut ids = Vec::<Vec<u8>>::new();
 
-    for key in dispatch_map.lock().unwrap().keys() {
-        ids.push(key.as_bytes().to_vec());
+    match dispatch_map.lock() {
+        Ok(v) => (0..v.len()).collect(),
+        Err(_) => Vec::new(),
     }
-
-    ids
 }
 
 fn main() {
     println!("{}", hello_world("hello".into()));
 
-    Dispatch::func1();
+    TestDispatch::func1();
 
-    Dispatch::func2("func2 arg".to_owned());
+    TestDispatch::func2("func2 arg".to_owned());
 
-    Dispatch::func3("func3 arg".to_owned(), 0x4444);
+    TestDispatch::func3("func3 arg".to_owned(), 0x4444);
 
-    let ids = init();
-    let ret = dispatch_call(
-        String::from_utf8(ids[0].clone()).unwrap(),
-        "called with dispatch call".as_bytes().to_vec(),
-    );
+    let ret = dispatch_call(0, "called with dispatch call".as_bytes().to_vec());
     println!(
         "return from dispatch_call: {:?}",
         String::from_utf8(ret).unwrap()

@@ -4,6 +4,10 @@ use proc_macro::TokenStream;
 use quote::{ToTokens, format_ident, quote};
 #[allow(unused_imports)]
 use syn::{ItemFn, ItemTrait, parse_macro_input};
+use syn::{ItemImpl, TraitItem, token::Token};
+
+mod manager;
+use manager::ImplManager;
 
 fn emit_procedure_stub(item_fn: &ItemFn) -> TokenStream {
     let stub_name = format_ident!("__stub_{}", item_fn.sig.ident);
@@ -112,13 +116,77 @@ fn emit_procedure_stub(item_fn: &ItemFn) -> TokenStream {
 pub fn dispatcher(_: TokenStream, tokens: TokenStream) -> TokenStream {
     let trait_input = tokens.clone();
 
-    match syn::parse::<ItemTrait>(trait_input) {
+    match syn::parse::<ItemImpl>(trait_input) {
         Ok(it) => {
-            dbg!(it);
+            // dbg!(&it);
+            let mut rpc_tokens = TokenStream::new();
+
+            let private_mod = emit_dispatch_private_mod(&it);
+            rpc_tokens.extend(private_mod);
+
+            let stub_definitions = emit_stub_definitions(&it);
+            rpc_tokens.extend(stub_definitions);
+
+            rpc_tokens.extend(tokens);
+
+            rpc_tokens
+        }
+        Err(err) => {
+            println!("Failed to parse ItemTrait: {}", err);
             tokens
         }
-        _ => tokens,
     }
+}
+
+fn emit_stub_definitions(i: &ItemImpl) -> TokenStream {
+    let manager = ImplManager::new(i.clone());
+
+    if let Ok(methods) = manager.get_methods() {
+        for method in methods {
+            println!("MethodInfo: {:#?}", method);
+        }
+    } else {
+        println!("ImplManager::get_methods FAILED");
+    }
+
+    TokenStream::new()
+}
+
+fn emit_dispatch_private_mod(i: &ItemImpl) -> TokenStream {
+    let manager = ImplManager::new(i.clone());
+    let mod_name = if let Some(ident) = manager.get_ident() {
+        format_ident!("__{}_mod", ident)
+    } else {
+        panic!("could not get_ident from impl: {:#?}", &i);
+    };
+
+    let expanded = quote! {
+        #[allow(non_snake_case)]
+        pub mod #mod_name {
+
+            type StubFn = fn(std::vec::Vec<u8>) -> std::vec::Vec<u8>;
+
+            fn init_dispatch_map() -> std::vec::Vec<StubFn> {
+                    std::vec![]
+            }
+
+            pub fn get_dispatch_map()
+            -> &'static std::sync::Mutex<std::vec::Vec<StubFn>> {
+                static DISPATCH_MAP: std::sync::OnceLock<
+                std::sync::Mutex<std::vec::Vec<StubFn>>
+                > = std::sync::OnceLock::new();
+                DISPATCH_MAP.get_or_init(|| std::sync::Mutex::new(init_dispatch_map()))
+            }
+
+            pub enum DispatchError {
+                Success = 0,
+                UnknownFunction = 1,
+                MapMutexFailure = 2,
+            }
+        }
+    };
+
+    expanded.into()
 }
 
 #[proc_macro_attribute]
