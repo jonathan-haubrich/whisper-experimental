@@ -65,6 +65,7 @@ version = "0.1.0"
 dependencies = [
  "quote",
  "rand",
+ "rmp-serde",
  "syn",
 ]
 
@@ -73,6 +74,7 @@ name = "pmr_dll"
 version = "0.1.0"
 dependencies = [
  "pmr",
+ "rmp-serde",
 ]
 
 [[package]]

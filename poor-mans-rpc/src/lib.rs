@@ -1,13 +1,13 @@
 extern crate proc_macro;
 
 use proc_macro::TokenStream;
-use quote::{ToTokens, format_ident, quote};
+use quote::{ToTokens, TokenStreamExt, format_ident, quote};
+use syn::ItemImpl;
 #[allow(unused_imports)]
 use syn::{ItemFn, ItemTrait, parse_macro_input};
-use syn::{ItemImpl, TraitItem, token::Token};
 
 mod manager;
-use manager::ImplManager;
+use manager::{ImplManager, MethodInfo};
 
 fn emit_procedure_stub(item_fn: &ItemFn) -> TokenStream {
     let stub_name = format_ident!("__stub_{}", item_fn.sig.ident);
@@ -121,14 +121,18 @@ pub fn dispatcher(_: TokenStream, tokens: TokenStream) -> TokenStream {
             // dbg!(&it);
             let mut rpc_tokens = TokenStream::new();
 
+            rpc_tokens.extend(tokens);
+
             let private_mod = emit_dispatch_private_mod(&it);
             rpc_tokens.extend(private_mod);
 
             let stub_definitions = emit_stub_definitions(&it);
             rpc_tokens.extend(stub_definitions);
 
-            rpc_tokens.extend(tokens);
+            let dispatch_definition = emit_dispatch_definition(&it);
+            rpc_tokens.extend(dispatch_definition);
 
+            println!("rpc_tokens: {}", rpc_tokens);
             rpc_tokens
         }
         Err(err) => {
@@ -138,18 +142,103 @@ pub fn dispatcher(_: TokenStream, tokens: TokenStream) -> TokenStream {
     }
 }
 
+fn emit_stub_definition(dispatch_ident: &syn::Ident, mi: &MethodInfo) -> TokenStream {
+    let MethodInfo(fn_name, args, ret_type) = mi;
+
+    let stub_ident = format_ident!("__stub_{}_{}", dispatch_ident, fn_name);
+
+    let arg_names: Vec<syn::Ident> = args.iter().map(|(n, _)| n.clone()).collect();
+
+    let args_decode = if !args.is_empty() {
+        quote! {
+            let (#(#arg_names),*) = rmp_serde::decode::from_slice(args.as_slice()).unwrap();
+        }
+    } else {
+        TokenStream::new().into()
+    };
+
+    let func_call = if ret_type.is_some() {
+        quote! {
+            let ret = #dispatch_ident::#fn_name(#(#arg_names),*);
+            rmp_serde::encode::to_vec(&ret).unwrap()
+        }
+    } else {
+        quote! {
+            #dispatch_ident::#fn_name(#(#arg_names),*);
+            std::vec::Vec::new()
+        }
+    };
+
+    let stub_ident_str = stub_ident.to_string();
+
+    let expanded = quote! {
+        #[allow(non_snake_case)]
+        fn #stub_ident(args: &std::vec::Vec<u8>) -> std::vec::Vec<u8> {
+            println!("in {}", #stub_ident_str);
+            #args_decode
+
+            #func_call
+        }
+    };
+
+    expanded.into()
+}
+
+fn emit_dispatch_definition(i: &ItemImpl) -> TokenStream {
+    let manager = ImplManager::new(i.clone());
+    let ident = manager.get_ident().unwrap();
+    let Ok(mi) = manager.get_methods() else {
+        panic!("oh no");
+    };
+
+    let mut ids: Vec<usize> = Vec::new();
+    let mut calls: Vec<syn::Ident> = Vec::new();
+
+    for (i, method_info) in mi.iter().enumerate() {
+        let stub_ident = format_ident!("__stub_{}_{}", ident, method_info.0);
+        ids.push(i);
+        calls.push(stub_ident)
+    }
+
+    let expanded = quote! {
+        #[unsafe(no_mangle)]
+        pub extern "C" fn dispatch(id: usize, arg_ptr: *mut u8, arg_len: usize) -> *mut std::ffi::c_void {
+            let args = unsafe { std::vec::Vec::from_raw_parts(arg_ptr, arg_len, arg_len) };
+            println!("in dispatch, id: {} arg_ptr: {} arg_len: {}", id, arg_ptr as usize, arg_len);
+            let ret = match id {
+                #(#ids => #calls(&args)),*,
+                _ => std::vec::Vec::new(),
+            };
+
+            std::mem::forget(args);
+            let encoded = rmp_serde::encode::to_vec(&(ret.len(), ret)).unwrap();
+            let slice = encoded.into_boxed_slice();
+            let ptr = std::boxed::Box::leak(slice);
+            ptr.as_mut_ptr() as *mut std::ffi::c_void
+        }
+    };
+
+    println!("emit_stub_definition expanded: {expanded}");
+    expanded.into()
+}
+
 fn emit_stub_definitions(i: &ItemImpl) -> TokenStream {
     let manager = ImplManager::new(i.clone());
+    let ident = manager.get_ident().unwrap();
+
+    let mut func_calls = TokenStream::new();
 
     if let Ok(methods) = manager.get_methods() {
         for method in methods {
             println!("MethodInfo: {:#?}", method);
+            let func_call = emit_stub_definition(&ident, &method);
+            func_calls.extend(func_call);
         }
     } else {
         println!("ImplManager::get_methods FAILED");
     }
 
-    TokenStream::new()
+    func_calls
 }
 
 fn emit_dispatch_private_mod(i: &ItemImpl) -> TokenStream {

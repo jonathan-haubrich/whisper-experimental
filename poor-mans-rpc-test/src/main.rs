@@ -53,7 +53,6 @@ pub mod __Dispatch_mod {
     }
 
     type StubFn = fn(Vec<u8>) -> Vec<u8>;
-
     fn init_dispatch_map() -> std::vec::Vec<StubFn> {
         std::vec![__stub_function_template as StubFn]
     }
