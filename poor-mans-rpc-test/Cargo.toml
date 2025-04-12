@@ -7,4 +7,5 @@ edition = "2024"
 rmp-serde = "1.3.0"
 serde = { version = "1.0.219", features = ["derive"] }
 pmr = { path = "../poor-mans-rpc" }
+memory-module = { path = "../memory-module" }
 rand = "0.9.0"

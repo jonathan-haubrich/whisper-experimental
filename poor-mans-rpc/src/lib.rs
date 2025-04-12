@@ -151,7 +151,9 @@ fn emit_stub_definition(dispatch_ident: &syn::Ident, mi: &MethodInfo) -> TokenSt
 
     let args_decode = if !args.is_empty() {
         quote! {
-            let (#(#arg_names),*) = rmp_serde::decode::from_slice(args.as_slice()).unwrap();
+            println!("Decoding args");
+            let (#(#arg_names),*) = rmp_serde::decode::from_slice(args).unwrap();
+            println!("Args decoded");
         }
     } else {
         TokenStream::new().into()
@@ -160,7 +162,7 @@ fn emit_stub_definition(dispatch_ident: &syn::Ident, mi: &MethodInfo) -> TokenSt
     let func_call = if ret_type.is_some() {
         quote! {
             let ret = #dispatch_ident::#fn_name(#(#arg_names),*);
-            rmp_serde::encode::to_vec(&ret).unwrap()
+            rmp_serde::encode::to_vec_named(&ret).unwrap()
         }
     } else {
         quote! {
@@ -173,7 +175,7 @@ fn emit_stub_definition(dispatch_ident: &syn::Ident, mi: &MethodInfo) -> TokenSt
 
     let expanded = quote! {
         #[allow(non_snake_case)]
-        fn #stub_ident(args: &std::vec::Vec<u8>) -> std::vec::Vec<u8> {
+        fn #stub_ident(args: &[u8]) -> std::vec::Vec<u8> {
             println!("in {}", #stub_ident_str);
             #args_decode
 
@@ -202,7 +204,7 @@ fn emit_dispatch_definition(i: &ItemImpl) -> TokenStream {
 
     let expanded = quote! {
         #[unsafe(no_mangle)]
-        pub extern "C" fn dispatch(id: usize, arg_ptr: *mut u8, arg_len: usize) -> *mut std::ffi::c_void {
+        pub unsafe extern "C" fn dispatch(id: usize, arg_ptr: *mut u8, arg_len: usize, ret_ptr: &mut *mut u8, ret_len: &mut usize) {
             let args = unsafe { std::vec::Vec::from_raw_parts(arg_ptr, arg_len, arg_len) };
             println!("in dispatch, id: {} arg_ptr: {} arg_len: {}", id, arg_ptr as usize, arg_len);
             let ret = match id {
@@ -211,10 +213,20 @@ fn emit_dispatch_definition(i: &ItemImpl) -> TokenStream {
             };
 
             std::mem::forget(args);
-            let encoded = rmp_serde::encode::to_vec(&(ret.len(), ret)).unwrap();
-            let slice = encoded.into_boxed_slice();
-            let ptr = std::boxed::Box::leak(slice);
-            ptr.as_mut_ptr() as *mut std::ffi::c_void
+
+            if !ret.is_empty() {
+
+                *ret_len = ret.len();
+                println!("set ret_len to: {}", *ret_len);
+
+                let slice = ret.into_boxed_slice();
+                let ptr = std::boxed::Box::leak(slice).as_mut_ptr();
+
+                *ret_ptr = ptr;
+                println!("set ret_ptr to: {:#?}", ret_ptr);
+            } else {
+                *ret_len = 0
+            }
         }
     };
 
