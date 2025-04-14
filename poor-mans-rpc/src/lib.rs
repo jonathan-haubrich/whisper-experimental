@@ -1,7 +1,7 @@
 extern crate proc_macro;
 
 use proc_macro::TokenStream;
-use quote::{ToTokens, TokenStreamExt, format_ident, quote};
+use quote::{format_ident, quote};
 use syn::ItemImpl;
 #[allow(unused_imports)]
 use syn::{ItemFn, ItemTrait, parse_macro_input};
@@ -293,7 +293,6 @@ fn emit_dispatch_private_mod(i: &ItemImpl) -> TokenStream {
 #[proc_macro_attribute]
 pub fn procedure(_: TokenStream, item: TokenStream) -> TokenStream {
     // preserve token stream
-    let original = item.clone();
     let fn_input = item.clone();
     //
     match syn::parse::<ItemFn>(fn_input) {

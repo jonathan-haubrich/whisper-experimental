@@ -1,7 +1,7 @@
 use std::ffi::c_void;
 
 use windows::Win32::System::Memory::{
-    self, MEM_COMMIT, MEM_RELEASE, MEM_RESERVE, PAGE_EXECUTE, PAGE_READWRITE,
+    self, MEM_COMMIT, MEM_RELEASE, MEM_RESERVE, PAGE_EXECUTE, PAGE_EXECUTE_READWRITE, PAGE_READWRITE
 };
 
 pub trait ModuleAllocator {
@@ -19,12 +19,14 @@ impl ModuleAllocator for VirtualAlloc {
         let allocation_type = MEM_RESERVE | MEM_COMMIT;
         let protect = match permissions {
             Some(protect) => Memory::PAGE_PROTECTION_FLAGS(protect),
-            None => PAGE_READWRITE | PAGE_EXECUTE,
+            None => PAGE_EXECUTE_READWRITE,
         };
 
         let mem = unsafe { Memory::VirtualAlloc(None, size, allocation_type, protect) };
 
-        if mem.is_null() { None } else { Some(mem) }
+        if mem.is_null() { 
+            println!("GLE: {:?}", unsafe{windows::Win32::Foundation::GetLastError()});
+            None } else { Some(mem) }
     }
 
     fn mem_free(mem: *mut c_void) {
