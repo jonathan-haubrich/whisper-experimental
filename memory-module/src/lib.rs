@@ -3,6 +3,7 @@
 mod allocator;
 mod pe_file;
 mod error;
+mod memory_module;
 
 use std::{marker::PhantomData, mem::transmute};
 
@@ -11,49 +12,12 @@ use allocator::ModuleAllocator;
 use pe_file::PeFile;
 use windows::Win32::System::{Diagnostics::Debug::IMAGE_SECTION_HEADER, SystemServices::{self, IMAGE_DOS_HEADER}};
 
-use error::Result;
+use memory_module::{Error, MemoryModule};
 
-pub struct MemoryModule<T: ModuleAllocator> {
-    allocator: PhantomData<T>,
-
-    pefile: PeFile,
-}
-
-impl<'pe, T: ModuleAllocator> MemoryModule<T> {
-    fn new(pe: Vec<u8>) -> Self {
-        MemoryModule::<T>{
-            allocator: PhantomData,
-            pefile: PeFile::new(pe),
-        }
-    }
-
-    fn load_library(&mut self) -> Result<bool>  {
-
-        let dos_header = self.pefile.dos_header();
-        println!("dos_header: {:x}", dos_header.e_magic);
-
-        let _ = self.pefile.validate();
-
-        for section in self.pefile.sections()? {
-            println!("section.Name: {}", String::from_utf8(section.Name.to_vec()).unwrap());
-        }
-
-        let mem = T::mem_alloc(0x1000, None);
-
-        dbg!(mem);
-        println!("mem: {:?}", mem);
-
-        if let Some(m) = mem {
-            allocator::VirtualAlloc::mem_free(m);
-        }
-
-        Ok(true)
-    }
-}
 
 #[cfg(test)]
 mod tests {
-    use crate::{allocator::{self, ModuleAllocator}, MemoryModule};
+    use crate::{allocator::{self, ModuleAllocator}, memory_module::MemoryModule};
 
     #[test]
     fn test_alloc() {
@@ -70,7 +34,7 @@ mod tests {
     #[test]
     fn test_load_library() {
         
-        let dll = std::fs::read(r#"C:\Windows\System32\ntdll.dll"#).unwrap();
+        let dll = std::fs::read(r#"C:\Windows\System32\ws2_32.dll"#).unwrap();
         
         let mut memory_module = MemoryModule::<allocator::VirtualAlloc>::new(dll);
 
