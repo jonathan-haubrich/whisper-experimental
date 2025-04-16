@@ -1,5 +1,5 @@
 
-use std::{marker::PhantomData, os::raw::c_void};
+use std::{ffi::CString, marker::PhantomData, os::raw::c_void};
 use crate::{ModuleAllocator, PeFile };
 
 ///
@@ -13,7 +13,7 @@ use crate::{ModuleAllocator, PeFile };
 /// 7. call entry point
 
 use thiserror::Error;
-use windows::Win32::{Foundation::{GetLastError, WIN32_ERROR}, System::{Diagnostics::Debug::{self, IMAGE_DIRECTORY_ENTRY_IMPORT}, Memory::{VirtualAlloc, VirtualFree, MEM_COMMIT, MEM_RELEASE, MEM_RESERVE, PAGE_READWRITE}, SystemServices::IMAGE_DOS_HEADER}};
+use windows::{core::PCSTR, Win32::{Foundation::{GetLastError, HMODULE, WIN32_ERROR}, System::{Diagnostics::Debug::{self, IMAGE_DIRECTORY_ENTRY_IMPORT}, LibraryLoader::{GetProcAddress, LoadLibraryA}, Memory::{VirtualAlloc, VirtualFree, MEM_COMMIT, MEM_RELEASE, MEM_RESERVE, PAGE_READWRITE}, SystemServices::{IMAGE_DOS_HEADER, IMAGE_IMPORT_BY_NAME, IMAGE_IMPORT_DESCRIPTOR, IMAGE_ORDINAL_FLAG64}}}};
 use crate::allocator;
 
 #[derive(Error, Debug)]
@@ -24,8 +24,14 @@ pub enum Error {
     #[error("invalid section")]
     PeSectionInvalid,
 
+    #[error("rva out of bounds")]
+    RvaOutOfBounds,
+
     #[error("win32 error")]
     Win32Error(WIN32_ERROR),
+
+    #[error("win32 api error")]
+    Win32ApiError(#[from] windows::core::Error)
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -137,6 +143,62 @@ impl<'pe, T: ModuleAllocator> MemoryModule<T> {
 
         println!("image_data_directory.Size: 0x{:x}", image_data_directory.Size);
         println!("image_data_directory.VirtualAddress: 0x{:x}", image_data_directory.VirtualAddress);
+
+        
+        let image_import_descriptors = unsafe { self.pefile.data.as_ptr().add(image_data_directory.VirtualAddress as usize) as *const IMAGE_IMPORT_DESCRIPTOR };
+        let mut current_image_import_descriptor = 0;
+        loop {
+
+            let image_import_descriptor: &IMAGE_IMPORT_DESCRIPTOR = unsafe { &*image_import_descriptors.add(current_image_import_descriptor) };
+
+            if image_import_descriptor.FirstThunk == 0 {
+                break;
+            }
+
+            let import_name_rva = image_import_descriptor.Name as usize;  
+            let import_name = self.pefile.get_cstring_at_rva(import_name_rva)?;
+    
+            println!("Import name: {}", import_name);
+            
+            let original_first_thunk_rva = unsafe { image_import_descriptor.Anonymous.OriginalFirstThunk };
+
+            let thunks_ptr = unsafe { self.pefile.data.as_ptr().add(original_first_thunk_rva as usize) as *mut u64};
+            let mut current_thunk = 0;
+
+            let module = unsafe { LoadLibraryA(PCSTR::from_raw(self.pefile.data.as_ptr().add(import_name_rva))) }?;
+
+            loop {
+                let thunk_ptr = unsafe { thunks_ptr.add(current_thunk) };
+                let thunk = unsafe { *thunk_ptr };
+
+                if thunk == 0 {
+                    break;
+                }
+
+                let proc_address ;
+                if thunk & IMAGE_ORDINAL_FLAG64 as u64 == IMAGE_ORDINAL_FLAG64 {
+                    let ordinal = thunk & 0xFFFF;
+                    println!("\tFunction imported by ordinal: {}", ordinal);
+                    proc_address = unsafe { GetProcAddress(module, PCSTR::from_raw(ordinal as *const u8)).unwrap() }
+                } else {
+                    let image_import_by_name_rva = thunk & (!IMAGE_ORDINAL_FLAG64);
+                    let image_import_by_name: &IMAGE_IMPORT_BY_NAME = self.pefile.get_struct_at_rva(image_import_by_name_rva as usize)?;
+
+                    let import_name = self.pefile.get_cstring_at_rva((image_import_by_name_rva + 2) as usize)?;
+                    proc_address = unsafe { GetProcAddress(module, PCSTR::from_raw(import_name.as_ptr())).unwrap() };
+
+                    println!("\tFunction imported by name: {}", import_name);
+                }
+
+                println!("\t\t...setting address to: 0x{:x}", proc_address as u64);
+                unsafe { *thunk_ptr = proc_address as u64 };
+
+                current_thunk += 1;
+            }
+
+            current_image_import_descriptor += 1;
+        }
+
 
         Ok(())
     }

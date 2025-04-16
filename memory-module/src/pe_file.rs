@@ -152,4 +152,41 @@ impl PeFile {
 
         Ok(section_data)
     }
+
+    pub fn get_struct_at_rva<T>(&self, rva: usize) -> memory_module::Result<&T> {
+        if rva + size_of::<T>() > self.data.len()  {
+            return Err(memory_module::Error::RvaOutOfBounds);
+        }
+
+        let data_ptr = unsafe { self.data.as_ptr().add(rva) };
+
+        let t_ref = unsafe { &*(data_ptr as *const T) };
+
+        Ok(t_ref)
+    }
+
+    pub fn get_cstring_at_rva(&self, rva: usize) -> memory_module::Result<&str> {
+        if rva > self.data.len()  {
+            return Err(memory_module::Error::RvaOutOfBounds);
+        }
+
+        let ptr = unsafe { self.data.as_ptr().add(rva) };
+        let mut len = 0usize;
+
+        loop {
+            if rva + len > self.data.len() {
+                break;
+            }
+
+            if unsafe { *ptr.add(len) } == 0 {
+                break;
+            }
+
+            len += 1;
+        }
+
+        let s = unsafe { std::str::from_utf8_unchecked(std::slice::from_raw_parts(ptr, len)) };
+
+        Ok(s)
+    }
 }
