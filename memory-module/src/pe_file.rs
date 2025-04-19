@@ -39,31 +39,36 @@ impl PeFile {
         let pe = &self.data;
     
         if pe.len() < size_of::<IMAGE_DOS_HEADER>() {
+            println!("pe.len() < size_of::<IMAGE_DOS_HEADER>()");
             return Err(memory_module::Error::PeInvalid);
         }
     
         let dos_header = unsafe { *std::mem::transmute::<*const u8, *const IMAGE_DOS_HEADER>(pe.as_ptr()) };
         if dos_header.e_magic != IMAGE_DOS_SIGNATURE {
+            println!("dos_header.e_magic != IMAGE_DOS_SIGNATURE");
             return Err(memory_module::Error::PeInvalid);
         }
     
         if pe.len() < (dos_header.e_lfanew as usize) + size_of::<IMAGE_NT_HEADERS64>() {
+            println!("pe.len() < (dos_header.e_lfanew as usize) + size_of::<IMAGE_NT_HEADERS64>()");
             return Err(memory_module::Error::PeInvalid);
         }
     
         let nt_header_ptr = unsafe { ImageNtHeader(pe.as_ptr() as *const c_void ) };
         let nt_header = unsafe { *nt_header_ptr };
         if nt_header.Signature != IMAGE_NT_SIGNATURE {
+            println!("nt_header.Signature != IMAGE_NT_SIGNATURE");
             return Err(memory_module::Error::PeInvalid);
         }
     
         if nt_header.OptionalHeader.Magic != IMAGE_NT_OPTIONAL_HDR64_MAGIC {
+            println!("nt_header.OptionalHeader.Magic != IMAGE_NT_OPTIONAL_HDR64_MAGIC");
             return Err(memory_module::Error::PeInvalid);
         }
     
-        if pe.len() < nt_header.OptionalHeader.SizeOfImage as usize ||
-            pe.len() < nt_header.OptionalHeader.SizeOfHeaders as usize
+        if pe.len() < nt_header.OptionalHeader.SizeOfHeaders as usize
          {
+            println!(r"pe.len() < nt_header.OptionalHeader.SizeOfHeaders as usize");
             return Err(memory_module::Error::PeInvalid);
         }
     
@@ -77,16 +82,18 @@ impl PeFile {
         let nt_header = unsafe { *nt_header_ptr };
 
         if nt_header.Signature != IMAGE_NT_SIGNATURE {
+            println!("nt_header.Signature != IMAGE_NT_SIGNATURE");
             return Err(memory_module::Error::PeInvalid);
         }
     
         if nt_header.OptionalHeader.Magic != IMAGE_NT_OPTIONAL_HDR64_MAGIC {
+            println!("nt_header.OptionalHeader.Magic != IMAGE_NT_OPTIONAL_HDR64_MAGIC");
             return Err(memory_module::Error::PeInvalid);
         }
     
-        if pe.len() < nt_header.OptionalHeader.SizeOfImage as usize ||
-            pe.len() < nt_header.OptionalHeader.SizeOfHeaders as usize
-         {
+        if pe.len() < nt_header.OptionalHeader.SizeOfHeaders as usize
+        {
+            println!("pe.len() < nt_header.OptionalHeader.SizeOfHeaders as usize");
             return Err(memory_module::Error::PeInvalid);
         }
     
@@ -180,12 +187,27 @@ impl PeFile {
 
             if unsafe { *ptr.add(len) } == 0 {
                 break;
+            } else {
+                print!("{}", unsafe { *ptr.add(len) });
             }
 
             len += 1;
         }
+        println!();
 
         let s = unsafe { std::str::from_utf8_unchecked(std::slice::from_raw_parts(ptr, len)) };
+
+        Ok(s)
+    }
+
+    pub fn get_cstring_from_mem_at_rva<'a>(mem: *const u8, rva: usize) -> memory_module::Result<&'a str> {
+        let mut len = 0;
+
+        while unsafe { *mem.byte_add(rva + len) } != 0 {
+            len += 1;
+        }
+
+        let s = unsafe { std::str::from_utf8_unchecked(std::slice::from_raw_parts(mem.add(rva), len)) };
 
         Ok(s)
     }

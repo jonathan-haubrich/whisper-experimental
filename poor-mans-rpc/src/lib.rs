@@ -205,8 +205,9 @@ fn emit_dispatch_definition(i: &ItemImpl) -> TokenStream {
     let expanded = quote! {
         #[unsafe(no_mangle)]
         pub unsafe extern "C" fn dispatch(id: usize, arg_ptr: *mut u8, arg_len: usize, ret_ptr: &mut *mut u8, ret_len: &mut usize) {
-            let args = unsafe { std::vec::Vec::from_raw_parts(arg_ptr, arg_len, arg_len) };
+            println!("in dispatch");
             println!("in dispatch, id: {} arg_ptr: {} arg_len: {}", id, arg_ptr as usize, arg_len);
+            let args = unsafe { std::vec::Vec::from_raw_parts(arg_ptr, arg_len, arg_len) };
             let ret = match id {
                 #(#ids => #calls(&args)),*,
                 _ => std::vec::Vec::new(),
