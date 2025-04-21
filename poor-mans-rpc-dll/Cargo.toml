@@ -10,3 +10,7 @@ crate-type = ["cdylib"]
 pmr = { path = "../poor-mans-rpc" }
 rmp-serde = "1.3.0"
 serde = { version = "1.0.219", features = ["derive"] }
+
+[build-dependencies]
+pmr_bindings = { path = "../poor-mans-rpc-bindings" }
+syn = { version = "2.0.100", features = ["full"] }

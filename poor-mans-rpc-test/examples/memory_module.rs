@@ -3,7 +3,7 @@ use memory_module::{MemoryModule, allocator};
 fn main() {
     println!("cwd: {:#?}", std::path::absolute(".").unwrap());
 
-    let dll = std::fs::read(r#".\target\debug\pmr_dll.dll"#).unwrap();
+    let dll = std::fs::read(r#".\target\release\pmr_dll.dll"#).unwrap();
     
     let mut memory_module = MemoryModule::<allocator::VirtualAlloc>::new(dll);
 

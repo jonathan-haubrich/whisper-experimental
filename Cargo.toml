@@ -1,3 +1,3 @@
 [workspace]
 resolver = "2"
-members = [ "memory-module","poor-mans-rpc", "poor-mans-rpc-dll", "poor-mans-rpc-test"]
+members = [ "core", "memory-module","poor-mans-rpc", "poor-mans-rpc-bindings", "poor-mans-rpc-dll", "poor-mans-rpc-test"]
