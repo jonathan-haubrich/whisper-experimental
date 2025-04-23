@@ -7,6 +7,7 @@ edition = "2024"
 bytemuck = "1.22.0"
 thiserror = "2.0.12"
 windows = { version = "0.60.0", features = [
+  "Win32_System_Kernel",
   "Win32_System_LibraryLoader",
   "Win32_System_Memory",
   "Win32_System_SystemInformation",

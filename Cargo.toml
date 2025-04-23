@@ -1,3 +1,9 @@
 [workspace]
 resolver = "2"
-members = [ "core", "memory-module","poor-mans-rpc", "poor-mans-rpc-bindings", "poor-mans-rpc-dll", "poor-mans-rpc-test"]
+members = [ "core", "memory-module", "module-survey","poor-mans-rpc", "poor-mans-rpc-bindings", "poor-mans-rpc-dll", "poor-mans-rpc-test", "test-binrw-enums"]
+
+[profile.dev]
+lto = "off"
+
+[profile.release]
+lto = "off"

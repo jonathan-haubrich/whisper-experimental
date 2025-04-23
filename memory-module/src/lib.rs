@@ -13,6 +13,8 @@ use allocator::ModuleAllocator;
 use pe_file::PeFile;
 use windows::Win32::System::{Diagnostics::Debug::IMAGE_SECTION_HEADER, SystemServices::{self, IMAGE_DOS_HEADER}};
 
+pub type FnDispatch = unsafe extern "C" fn(id: usize, arg_ptr: *mut u8, arg_len: usize, ret_ptr: &mut *mut u8, ret_len: &mut usize);
+
 #[cfg(test)]
 mod tests {
     use windows::{core::PCSTR, Win32::System::LibraryLoader::GetProcAddress};
@@ -33,7 +35,7 @@ mod tests {
 
     #[test]
     fn test_load_library() {
-        
+        pub type FnDispatch = unsafe extern "C" fn(id: usize, arg_ptr: *mut u8, arg_len: usize, ret_ptr: &mut *mut u8, ret_len: &mut usize);
         println!("cwd: {:#?}", std::path::absolute(".").unwrap());
 
         let dll = std::fs::read(r#"..\target\debug\pmr_dll.dll"#).unwrap();
@@ -49,8 +51,6 @@ mod tests {
             Ok(_) => println!("Called successfully!"),
             Err(err) => panic!("Nope :( {err:#?}"),
         }
-
-        type FnDispatch = unsafe extern "C" fn(id: usize, arg_ptr: *mut u8, arg_len: usize, ret_ptr: &mut *mut u8, ret_len: &mut usize);
 
         let hmodule = memory_module.hmodule().unwrap();
 

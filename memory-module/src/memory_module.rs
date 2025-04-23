@@ -13,7 +13,7 @@ use crate::{memory_module, pe_file, ModuleAllocator, PeFile };
 /// 7. call entry point
 
 use thiserror::Error;
-use windows::{core::PCSTR, Win32::{Foundation::{GetLastError, HMODULE, WIN32_ERROR}, System::{Diagnostics::Debug::{self, IMAGE_DIRECTORY_ENTRY_BASERELOC, IMAGE_DIRECTORY_ENTRY_EXPORT, IMAGE_DIRECTORY_ENTRY_IMPORT, IMAGE_DIRECTORY_ENTRY_TLS}, LibraryLoader::{GetProcAddress, LoadLibraryA}, Memory::{LocalAlloc, VirtualAlloc, VirtualFree, LMEM_ZEROINIT, MEM_COMMIT, MEM_RELEASE, MEM_RESERVE, PAGE_EXECUTE_READWRITE, PAGE_READWRITE}, SystemServices::{DLL_PROCESS_ATTACH, IMAGE_BASE_RELOCATION, IMAGE_DOS_HEADER, IMAGE_EXPORT_DIRECTORY, IMAGE_IMPORT_BY_NAME, IMAGE_IMPORT_DESCRIPTOR, IMAGE_ORDINAL_FLAG64, IMAGE_REL_BASED_ABSOLUTE, IMAGE_REL_BASED_HIGHLOW, IMAGE_TLS_DIRECTORY64, PIMAGE_TLS_CALLBACK}, Threading::{TlsAlloc, TlsSetValue, TLS_OUT_OF_INDEXES}}}};
+use windows::{core::PCSTR, Win32::{self, Foundation::{GetLastError, HMODULE, WIN32_ERROR}, System::{self, Diagnostics::Debug::{self, IMAGE_DIRECTORY_ENTRY_BASERELOC, IMAGE_DIRECTORY_ENTRY_EXPORT, IMAGE_DIRECTORY_ENTRY_IMPORT, IMAGE_DIRECTORY_ENTRY_TLS}, LibraryLoader::{GetProcAddress, LoadLibraryA}, Memory::{LocalAlloc, VirtualAlloc, VirtualFree, LMEM_ZEROINIT, MEM_COMMIT, MEM_RELEASE, MEM_RESERVE, PAGE_EXECUTE_READWRITE, PAGE_READWRITE}, SystemServices::{DLL_PROCESS_ATTACH, IMAGE_BASE_RELOCATION, IMAGE_DOS_HEADER, IMAGE_EXPORT_DIRECTORY, IMAGE_IMPORT_BY_NAME, IMAGE_IMPORT_DESCRIPTOR, IMAGE_ORDINAL_FLAG64, IMAGE_REL_BASED_ABSOLUTE, IMAGE_REL_BASED_HIGHLOW, IMAGE_TLS_DIRECTORY64, PIMAGE_TLS_CALLBACK}, Threading::{TlsAlloc, TlsGetValue, TlsSetValue, TLS_OUT_OF_INDEXES}}}};
 use crate::allocator;
 
 #[derive(Error, Debug)]
@@ -312,10 +312,38 @@ impl<'pe, T: ModuleAllocator> MemoryModule<T> {
             tls_memory.0 as *mut u8,
             alloc_size); }
 
-        unsafe { TlsSetValue(tls_index, Some(tls_memory.0))? }
+        
+        let mut teb_ptr: *mut Win32::System::Threading::TEB = std::ptr::null_mut();
+        unsafe { core::arch::asm!(
+            "mov {teb_ptr}, gs:[0x30]",
+            teb_ptr = out(reg) teb_ptr
+        ) }
+        // println!("Got TEB: {:#?}", unsafe { *teb_ptr });
 
-        let address_of_index_ptr = image_tls_directory.AddressOfIndex as *mut u32;
-        unsafe { *address_of_index_ptr = tls_index };
+        let tls_storage_slots = unsafe { teb_ptr.byte_add(0x58) as *mut *const c_void };
+
+        if tls_storage_slots.is_null() {
+            println!("Need to allocate TlsData array");
+        } else {
+            let tls_storage_slots = unsafe { (*tls_storage_slots) as *mut *const c_void };
+            let mut next_slot = 0usize;
+    
+            println!("tls_storage_slots starts at: {tls_storage_slots:#?}");
+            while unsafe { *tls_storage_slots.add(next_slot) } != std::ptr::null() {
+                println!("tls_storage_slots[{next_slot}]: {:#?}", unsafe { *tls_storage_slots.add(next_slot)});
+                next_slot += 1;
+            }
+    
+            println!("Found next empty slot: {next_slot}");
+
+            let tls_index = next_slot as u32;
+
+            let address_of_index_ptr = image_tls_directory.AddressOfIndex as *mut u32;
+            unsafe { *address_of_index_ptr = tls_index };
+            println!("Setting {:#?} to index {:#?}", address_of_index_ptr, tls_index);
+
+            unsafe { *tls_storage_slots.add(tls_index as usize) = tls_memory.0 };
+        }
 
         let mut current_callback = 0;
         
