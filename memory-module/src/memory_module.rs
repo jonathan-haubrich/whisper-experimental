@@ -69,22 +69,22 @@ impl<'pe, T: ModuleAllocator> MemoryModule<T> {
         }
 
         if let Err(err) = self.map_structs() {
-            println!("map_structs failed");
+            println!("map_structs failed: {:#?}", err);
             return Err(err);            
         }
 
         if let Err(err) = self.resolve_imports() {
-            println!("resolve_imports failed");
+            println!("resolve_imports failed: {err}");
             return Err(err);            
         }
 
         if let Err(err) = self.apply_relocations() {
-            println!("apply_relocations failed");
+            println!("apply_relocations failed: {err}");
             return Err(err);            
         }
 
         if let Err(err) = self.init_tls_callbacks() {
-            println!("init_tls_callbacks failed");
+            println!("init_tls_callbacks failed: {err}");
             return Err(err);
 
         }
@@ -98,7 +98,7 @@ impl<'pe, T: ModuleAllocator> MemoryModule<T> {
         let size_of_image = nt_header.OptionalHeader.SizeOfImage as usize; 
 
         // try at preferred base first
-        let mem = unsafe {
+        let mut mem = unsafe {
             VirtualAlloc(Some(nt_header.OptionalHeader.ImageBase as *const c_void), 
                 size_of_image,
                 MEM_RESERVE | MEM_COMMIT,
@@ -107,8 +107,8 @@ impl<'pe, T: ModuleAllocator> MemoryModule<T> {
 
         if mem.is_null() {
             // fallback to whatever
-            let mem = unsafe {
-                VirtualAlloc(None, 
+            mem = unsafe {
+                VirtualAlloc(Some(std::ptr::null()), 
                     size_of_image,
                     MEM_RESERVE | MEM_COMMIT,
                     PAGE_EXECUTE_READWRITE)
@@ -266,9 +266,9 @@ impl<'pe, T: ModuleAllocator> MemoryModule<T> {
                 
                 let addr = unsafe { mem.add(reloc_rva as usize) as *mut u64 };
                 let addr_before = unsafe { *addr as u64 };
-                unsafe { *addr = *addr.wrapping_byte_add(reloc_delta) as u64 };
+                unsafe { *addr = (*addr) + reloc_delta as u64 };
                 let addr_after = unsafe { *addr as u64 };
-                // println!("\treloc_type: {:x} reloc_rva: {:x} reloc_delta: {:x} addr_before: {:x} addr_after: {:x}", reloc_type, reloc_offset, reloc_delta, addr_before, addr_after);
+                println!("\treloc_type: {:x} reloc_rva: {:x} reloc_delta: {:x} addr_before: {:x} addr_after: {:x}", reloc_type, reloc_offset, reloc_delta, addr_before, addr_after);
             }
 
             processed += image_base_relocation.SizeOfBlock;

@@ -4,14 +4,14 @@ use pmr;
 use windows::{core::PSTR, Win32::System::WindowsProgramming::{GetComputerNameA, MAX_COMPUTERNAME_LENGTH}};
 
 trait Surveyor {
-    fn get_hostname() -> String;
+    fn hostname() -> String;
 }
 
 struct Survey {}
 
 #[pmr::dispatcher]
 impl Surveyor for Survey {
-    fn get_hostname() -> String {
+    fn hostname() -> String {
         println!("in get_hostname");
         const COMPUTER_NAME_BUF_CAPACITY: usize = (MAX_COMPUTERNAME_LENGTH + 1) as usize;
         let mut computer_name_buf = [0u8; COMPUTER_NAME_BUF_CAPACITY];

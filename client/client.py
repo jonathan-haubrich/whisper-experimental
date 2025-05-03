@@ -1,46 +1,67 @@
 import protocol
 import msgpack
 import socket
+import struct
+from typing import Tuple
 
-def main():
-    module_path = r".\target\debug\module_survey.dll"
-    with open(module_path, "rb") as fp:
-        module = fp.read()
+MODULES_DIR = "./modules"
 
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP)
-    s.connect(('172.20.42.169', 4444))
+class Client:
+    def __init__(self):
+        self.socket = None
 
-    message = protocol.pack_load(module)
+    def connect(self, endpoint):
+        if self.socket is not None:
+            raise Exception("Socket already connected")
+        
+        self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP)
+        self.socket.connect(endpoint)
 
-    sent = s.send(message)
-    print(f"Sent {sent} bytes")
+    def close(self):
+        if self.socket is None:
+            return
 
-    response = s.recv(4096)
-    print(f"Response: {response}")
+        self.socket.shutdown(socket.SHUT_RDWR)
+        self.socket.close()
 
-    s.close()
+    def load(self, module) -> int:
+        message = protocol.pack_load(module)
+        self.socket.sendall(message)
 
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP)
-    s.connect(('172.20.42.169', 4444))
-    s.settimeout(2)
+        response = self.recv_message()
 
-    message = protocol.pack_command(0, 0)
+        module_id = protocol.unpack_response(response)
 
-    print(f"Sending: {message}")
-    sent = s.send(message)
-    print(f"Sent {sent} bytes")
+        return module_id
 
-    response = s.recv(4096)
+    def recv_message(self) -> bytes:
+        header, message_len = self.recv_message_len()
 
-    header, body = protocol.unpack_response(response)
+        message = self.recv_all(message_len)
 
-    unpacked = msgpack.unpackb(body)
+        return header + message
 
-    print("unpacked:", unpacked)
+    def recv_message_len(self) -> Tuple[bytes, int]:
+        response_len_size = struct.calcsize(protocol.MESSAGE_RESPONSE_HEADER)
 
-    print(f"Response: {response}")
+        header_len_bytes = self.recv_all(response_len_size)
 
-    s.close()    
+        unpacked = struct.unpack(protocol.MESSAGE_RESPONSE_HEADER, header_len_bytes)
 
-if __name__ == '__main__':
-    main()
+        if len(unpacked) < 1:
+            raise Exception("Failed to unpack message response header")
+        
+        return header_len_bytes, unpacked[0]
+    
+    def recv_all(self, requested) -> bytes:
+        received = 0
+        data = b''
+
+        while received < requested:
+            chunk = self.socket.recv(requested - received)
+            if chunk is None:
+                break
+            received += len(chunk)
+            data += chunk
+
+        return data
