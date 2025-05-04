@@ -2,13 +2,14 @@ import protocol
 import msgpack
 import socket
 import struct
-from typing import Tuple
+from typing import Dict, List, Tuple
 
 MODULES_DIR = "./modules"
 
 class Client:
     def __init__(self):
-        self.socket = None
+        self.socket: socket.socket = None
+        self.loaded: Dict[str, int] = {}
 
     def connect(self, endpoint):
         if self.socket is not None:
@@ -25,6 +26,10 @@ class Client:
         self.socket.close()
 
     def load(self, module) -> int:
+        if module in self.loaded:
+            raise Exception(f"Module {module} already loaded")
+            return
+
         message = protocol.pack_load(module)
         self.socket.sendall(message)
 
@@ -32,7 +37,13 @@ class Client:
 
         module_id = protocol.unpack_response(response)
 
+        self.loaded[module] = module_id
+
         return module_id
+    
+    def loaded(self) -> List[str]:
+        loaded = [loaded for loaded in self.loaded]
+        return loaded
 
     def recv_message(self) -> bytes:
         header, message_len = self.recv_message_len()

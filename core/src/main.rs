@@ -1,20 +1,33 @@
-use std::{any::{type_name, TypeId}, io::{BufRead, Bytes, Cursor, Read, Write}, net::{SocketAddr, TcpStream}, os::raw::c_void, sync::mpsc::{Receiver, Sender}, thread::JoinHandle};
+use std::{any::{type_name, TypeId}, env, io::{BufRead, Bytes, Cursor, Read, Write}, net::{SocketAddr, TcpStream}, os::raw::c_void, sync::mpsc::{Receiver, Sender}, thread::JoinHandle};
 
 use binrw::{io::BufReader, BinRead, BinWrite};
 use binrw::BinReaderExt;
 use memory_module::{allocator::VirtualAlloc, FnDispatch, MemoryModule};
-use protocol::{Header, Message};
-
-
-mod protocol;
 
 fn handle_connection(stream: TcpStream, addr: SocketAddr) {
     println!("Handling connection: {:#?}", addr);
 }
 
+include!("codegen/protos/protocol.rs");
+
+use prost::{self, Message};
+
+use binrw;
+use rmp_serde::encode::write;
+
+#[binrw::binrw]
+#[brw(big)]
+struct Envelope {
+    #[br(temp)]
+    #[bw(calc = data.len() as u64)]
+    pub len: u64,
+
+    #[br(count = len)]
+    pub data: Vec<u8>,
+}
 
 fn main() {
-    let (dispatch_in_send, dispatch_in_recv): (Sender<Message>, Receiver<Message>) = std::sync::mpsc::channel(); 
+    let (dispatch_in_send, dispatch_in_recv): (Sender<protocol::Msg>, Receiver<protocol::Msg>) = std::sync::mpsc::channel(); 
     let (dispatch_out_send, dispatch_out_recv): (Sender<Vec<u8>>, Receiver<Vec<u8>>) = std::sync::mpsc::channel(); 
 
     let dispatch_thread = std::thread::spawn(move || {
@@ -25,11 +38,11 @@ fn main() {
 
         loop {
             let response = match receiver.recv() {
-                Ok(Message::Load(message)) => {
-                    println!("Got load message:\n\t{}", message.data.len());
+                Ok(protocol::Msg::Load(load)) => {
+                    println!("Got load message:\n\t{}", load.data.len());
 
                     println!("initializing memory module");
-                    let mut module = MemoryModule::<VirtualAlloc>::new(message.data);
+                    let mut module = MemoryModule::<VirtualAlloc>::new(load.data);
 
                     println!("callling module.load_library");
                     match module.load_library() {
@@ -40,16 +53,17 @@ fn main() {
                                     let dispatch: FnDispatch = unsafe { std::mem::transmute(dispatch) };
                                     modules.push((module, dispatch));
                                     let module_id: u32 = modules.len() as u32 - 1;
-                                    let mut response = Cursor::new(Vec::<u8>::new());
-                                    let message_data = module_id.to_be_bytes().to_vec();
-                                    let message = protocol::Response{data: message_data};
-                                    match message.write(&mut response) {
-                                        Ok(_) => response.into_inner(),
-                                        Err(err) => {
-                                            println!("Failed to serialize response: {err}");
-                                            Vec::new()
-                                        }
-                                    }
+                                    let msg = protocol::Msg::LoadResponse(LoadResponse { module_id });
+                                    let mut response: Vec<u8> = Vec::new();
+                                    msg.encode(&mut response);
+
+                                    let envelope = Envelope{
+                                        data: response
+                                    };
+                                    let writer_buf: Vec<u8> = Vec::new();
+                                    let mut cursor = Cursor::new(writer_buf);
+                                    envelope.write(&mut cursor).unwrap();
+                                    cursor.into_inner()
                                 },
                                 None => Vec::new() 
                             }
@@ -61,7 +75,7 @@ fn main() {
                     }
 
                 },
-                Ok(Message::Command(mut command)) => {
+                Ok(protocol::Msg::Command(mut command)) => {
                     println!("Got command message:\n\tid: {}\n\targs: {}", command.id, command.data.len());
 
                     match modules.get(command.module_id as usize) {
@@ -72,15 +86,11 @@ fn main() {
                             unsafe { dispatch(command.id as usize, command.data.as_mut_ptr(), command.data.len(), &mut response_ptr, &mut response_len); }
                             let response = unsafe { Vec::from_raw_parts(response_ptr, response_len, response_len) };
 
-                            let mut writer = Cursor::new(Vec::<u8>::new());
-                            let message = protocol::Response { data: response };
-                            match message.write(&mut writer) {
-                                Ok(_) => writer.into_inner(),
-                                Err(err) => {
-                                    println!("Failed to serialize response: {err}");
-                                    Vec::new()
-                                } 
-                            }
+                            let msg = protocol::Msg::Response(Response { data: response });
+                            let mut response: Vec<u8> = Vec::new();
+                            msg.encode(&mut response);
+                            response
+
                         },
                         None => Vec::new()
                     }
@@ -121,34 +131,17 @@ fn main() {
             }
         };
 
-        println!("Received connection from: {:#?}", addr);
+        println!("Received connection from: {:#?}", addr); 
 
         let mut reader = binrw::io::NoSeek::new(&stream);
 
-        println!("Reading header");
-        let header = Header::read(&mut reader).unwrap();
-        println!("Read header: {header:#?}");
+        let envelope = Envelope::read(&mut reader).unwrap();
 
-        let message = match header.r#type {
-            protocol::Type::Load => {
-                println!("trying to read load message");
-                let message = protocol::Load::read(&mut reader).unwrap();
-                println!("got message: {}", message.data.len());
-                protocol::Message::Load(message)
-            },
-            protocol::Type::Command => {
-                println!("trying to read command message");
-                let message = protocol::Command::read(&mut reader).unwrap();
-                println!("got message: {}", message.data.len());
-                protocol::Message::Command(message)
-            }
-            _ => {
-                println!("Got command: {:#?}", header.r#type);
-                continue;
-            }
-        };
+        let msg = Protocol::decode(envelope.data.as_slice()).unwrap();
+        let msg = msg.msg.unwrap();
+       
 
-        match dispatch_in_send.send(message) {
+        match dispatch_in_send.send(msg) {
             Ok(_) => println!("sent message to dispatch thread"),
             Err(err) => println!("Failed to send to dispatch thread: {err}")
         }
