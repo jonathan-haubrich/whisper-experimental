@@ -6,4 +6,8 @@ members = [ "core", "memory-module", "module-survey","poor-mans-rpc", "poor-mans
 lto = "off"
 
 [profile.release]
-lto = "off"
+strip = true  # Automatically strip symbols from the binary.
+opt-level = "z"  # Optimize for size.
+lto = true
+codegen-units = 1
+panic = "abort"
