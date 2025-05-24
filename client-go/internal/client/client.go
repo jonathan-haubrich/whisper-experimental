@@ -132,3 +132,10 @@ func (c *Client) Load(module string) (int, error) {
 
 	return int(response.ModuleId), nil
 }
+
+func (c *Client) Command(moduleId int64, commandId int64, arg ...any) (any, error) {
+
+	
+
+	return nil, nil
+}

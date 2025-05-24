@@ -1,6 +1,18 @@
 [workspace]
 resolver = "2"
-members = [ "core", "memory-module", "module-survey","poor-mans-rpc", "poor-mans-rpc-bindings", "poor-mans-rpc-dll", "poor-mans-rpc-test", "test-binrw-enums"]
+members = [
+    "client-rs",
+    "core",
+    "manifest-gen",
+    "memory-module",
+    "module-survey-dll",
+    "module-survey-wasm",
+    "poor-mans-rpc",
+    "poor-mans-rpc-bindings",
+    "poor-mans-rpc-dll",
+    "poor-mans-rpc-test",
+    "test-binrw-enums"
+    ]
 
 [profile.dev]
 lto = "off"

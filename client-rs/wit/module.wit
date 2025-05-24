@@ -1,0 +1,34 @@
+package whisper:module@1.0.0;
+
+world whisper-module {
+    record msg {
+        module-id: string,
+        tx-id: u64,
+        data: list<u8>,
+    }
+
+    record module-func-arg {
+        name: string,
+        %type: string,
+        required: bool,
+        help: option<string>,
+    }
+
+    record module-func {
+        name: string,
+        description: option<string>,
+        args: option<list<module-func-arg>>,
+    }
+
+    record module-descriptor {
+        name: string,
+        description: option<string>,
+        funcs: option<list<module-func>>,
+    }
+
+    import message-sink: func(msg: msg);
+
+    export get-module-descriptor: func() -> module-descriptor;
+
+    export handle-command: func(tx-id: u64, command: string, args: list<string>);
+}

@@ -1,0 +1,11 @@
+name: greeter
+description: Greets stuff, that's about it
+
+functions:
+  - hello:
+    description: "Says hello to the remote end"
+    args:
+      - name:
+        help: Name of person to greet
+        type: string
+        required: true

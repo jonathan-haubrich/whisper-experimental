@@ -1,0 +1,42 @@
+syntax = "proto3";
+
+//
+// description: Greets stuff, that's about it
+//
+package greeter;
+
+//
+// description: Calls hello world function on remote
+//
+message HelloRequest {
+  //
+  //  help: Name of person to greet
+  //  required: true
+  //
+  string name = 1;
+}
+
+message HelloResponse {
+  string message = 1;
+}
+
+//
+// description: Makes a friendly waving gesture
+//
+message WaveRequest {
+  //
+  //  help: How vigorously to wave
+  //  required: false
+  //
+  int64 vigor = 1;
+
+  //
+  //  help: How long to wave
+  //  required: true
+  //
+  int64 duration = 2;
+}
+
+message WaveResponse {
+  string reaction = 1;
+}

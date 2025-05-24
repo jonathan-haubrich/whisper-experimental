@@ -1,0 +1,10 @@
+[package]
+name = "client-rs"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0.98"
+prost = "0.13.5"
+wasmtime = { version = "33.0.0", features = ["component-model", "cranelift", "std", "runtime"] }
+wasmtime-wasi = "33.0.0"
