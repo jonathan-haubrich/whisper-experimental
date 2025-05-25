@@ -1,57 +1,44 @@
 
-use wasmtime::component::{bindgen, Component, Linker, ResourceTable};
-use wasmtime::*;
-use wasmtime_wasi::p2::bindings::sync::Command;
-use wasmtime_wasi::p2::{IoView, WasiCtx, WasiCtxBuilder, WasiView};
 
-struct MyState {
-    ctx: WasiCtx,
-    table: ResourceTable,
-}
-impl IoView for MyState {
-    fn table(&mut self) -> &mut ResourceTable { &mut self.table }
-}
-impl WasiView for MyState {
-    fn ctx(&mut self) -> &mut WasiCtx { &mut self.ctx }
-}
+
+mod module_manager;
+use log::{error, info};
+use module_manager::ModuleManager;
 
 fn main() -> anyhow::Result<()> {
-    let mut config = Config::new();  
-    config.wasm_component_model(true);  
-    config.debug_info(true);  
-    let engine = Engine::new(&config)?;
+    pretty_env_logger::init();
 
-    let bytes = std::fs::read(r#"target\wasm32-wasip2\debug\module_survey_wasm.wasm"#)?;
-    let component = wasmtime::component::Component::new(&engine, bytes)?;
+    let path = r#"target\wasm32-wasip2\debug\module_survey_wasm.wasm"#;
 
-    let mut linker = wasmtime::component::Linker::<MyState>::new(&engine);
-    wasmtime_wasi::p2::add_to_linker_sync(&mut linker)?;
+    let mut module_manager = ModuleManager::new(
+        |msg| info!("Received msg: {msg:#?}")
+    )?;
 
-    let mut builder = WasiCtxBuilder::new();
+    info!("===== Listing modules:");
+    for descriptor in module_manager.get_module_descriptors()? {
+        info!("Descriptor for: {}\n{:#?}", descriptor.name, descriptor);
+    }
 
-    let mut store = Store::new(
-        &engine,
-        MyState {
-            ctx: builder
-                .inherit_network()
-                .inherit_stdio()
-                .build(),
-            table: ResourceTable::new(),
-        },
-    );
+    info!("Adding module: {path}");
+    module_manager.add_module(&std::path::Path::new(path))?;
 
-    bindgen!({
-        world: "whisper-module",
-        path: r#".\wit\module.wit"#,
-    });
+    info!("===== Listing modules:");
+    for descriptor in module_manager.get_module_descriptors()? {
+        info!("===== {} =====", descriptor.name);
+        if let Some(funcs) = descriptor.funcs {
+            for func in &funcs {
+                let default_description = String::default();
+                let description = func.description.as_ref().unwrap_or(&default_description);
+                info!("\t{}\t{}", func.name, description);
+            }
+        }
+    }
 
-    let bindings = WhisperModule::instantiate(&mut store, &component, &linker)?;
-
-    let module_descriptor = bindings.call_get_module_descriptor(&mut store)?;
-
-    println!("module_descriptor: {module_descriptor:?}");
-
-    bindings.call_handle_command(&mut store, 1, "command", &["arg1".to_owned(), "arg2".to_owned()])?;
+    info!("===== Calling: survey::hostname");
+    match module_manager.call_module_command("survey", "hostname", Vec::new()) {
+        Ok(_) => info!("Successfully called call_module_command"),
+        Err(err) => error!("Failed to call call_module_command: {err}")
+    }
 
     Ok(())
 }

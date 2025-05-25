@@ -4,7 +4,7 @@ world whisper-module {
     record msg {
         module-id: string,
         tx-id: u64,
-        data: list<u8>,
+        data: option<list<u8>>,
     }
 
     record module-func-arg {
@@ -26,7 +26,9 @@ world whisper-module {
         funcs: option<list<module-func>>,
     }
 
-    import message-sink: func(msg: msg);
+    import message-out: func(msg: msg);
+
+    export message-in: func(tx-id: u64, msg: list<u8>) -> result<_, u32>;
 
     export get-module-descriptor: func() -> module-descriptor;
 
