@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+import "common.proto";
+
+package whisper.protocol;
+
+message Response {
+  Header header = 1;
+  oneof response {
+    LoadResponse load = 2;
+    CommandResponse command = 3;
+  }
+}
+
+message LoadResponse {
+  uint64 module_id = 1;
+}
+
+message CommandResponse {
+  bytes data = 1;
+}

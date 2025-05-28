@@ -100,6 +100,26 @@ impl ModuleManager {
         Ok(module_descriptors)
     }
 
+    pub fn get_module_descriptor(&mut self, module: &str) -> Option<ModuleDescriptor> {
+        if let Some(binding) = self.bindings.get(module) {
+            return binding.call_get_module_descriptor(&mut self.store)
+                .map(|desc| Some(desc))
+                .unwrap_or(None);
+        }
+
+        None
+    }
+
+    pub fn get_module_data(&mut self, module: &str) -> Option<Vec<u8>> {
+        if let Some(binding) = self.bindings.get(module) {
+            return binding.call_get_module_data(&mut self.store)
+                .map(|data| Some(data))
+                .unwrap_or(None);
+        }
+
+        None
+    }
+
     pub fn call_module_command(&mut self, module: &str, command: &str, args: Vec<String>) -> Result<()> {
         info!("module: {module} command: {command}");
         if let Some(binding) = self.bindings.get(module) {

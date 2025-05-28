@@ -32,5 +32,7 @@ world whisper-module {
 
     export get-module-descriptor: func() -> module-descriptor;
 
+    export get-module-data: func() -> list<u8>;
+
     export handle-command: func(tx-id: u64, command: string, args: list<string>);
 }

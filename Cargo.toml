@@ -12,7 +12,7 @@ members = [
     "poor-mans-rpc-dll",
     "poor-mans-rpc-test",
     "test-binrw-enums"
-    ]
+    , "whisper-lib"]
 
 [profile.dev]
 lto = "off"
