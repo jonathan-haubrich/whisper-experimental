@@ -429,8 +429,10 @@ name = "core"
 version = "0.1.0"
 dependencies = [
  "binrw 0.13.3",
+ "log",
  "memory-module",
  "pmr",
+ "pretty_env_logger",
  "prost",
  "rmp-serde",
  "whisper-lib",
@@ -1402,6 +1404,7 @@ name = "module-survey-wasm"
 version = "0.1.0"
 dependencies = [
  "prost",
+ "rmp-serde",
  "wit-bindgen",
 ]
 
@@ -2825,6 +2828,8 @@ dependencies = [
 name = "whisper-lib"
 version = "0.1.0"
 dependencies = [
+ "log",
+ "pretty_env_logger",
  "prost",
 ]
 

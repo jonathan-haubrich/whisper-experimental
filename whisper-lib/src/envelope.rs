@@ -3,6 +3,8 @@ use std::io::{Read, Write};
 
 use prost::{self, Message};
 
+use log::{error, info, warn};
+
 #[repr(C)]
 pub struct Envelope {
     pub len: u64,
@@ -23,14 +25,15 @@ impl Envelope {
             data: Vec::new()
         };
 
-        let len_ptr = &mut envelope.len as *mut _ as *mut u8;
-        let len_size = size_of_val(&envelope.len);
-
-        let mut len_slice = unsafe { std::slice::from_raw_parts_mut(len_ptr, len_size) };
+        let mut len_slice = [0u8; 8];
 
         stream.read_exact(&mut len_slice)?;
 
-        envelope.len = envelope.len.to_le();
+        info!("read bytes: {:#?}", len_slice);
+
+        info!("before to_le: envelope.len: {}", envelope.len);
+        envelope.len = u64::from_ne_bytes(len_slice);
+        info!("after to_le: envelope.len: {}", envelope.len);
 
         envelope.data.resize(envelope.len as usize, 0);
 
@@ -40,6 +43,8 @@ impl Envelope {
     }
 
     pub fn write(&self, stream: &mut net::TcpStream) -> Result<(), std::io::Error> {
+        info!("ne bytes: {:#?}", self.len.to_ne_bytes().as_slice());
+        stream.write_all(self.len.to_ne_bytes().as_slice())?;
         stream.write_all(&self.data)
     }
 }

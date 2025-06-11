@@ -14,6 +14,6 @@ rand = "0.9.1"
 rustyline = "15.0.0"
 shlex = "1.3.0"
 thiserror = "2.0.12"
-wasmtime = { version = "33.0.0", features = ["component-model", "cranelift", "std", "runtime"] }
+wasmtime = { version = "33.0.0", features = ["component-model", "cranelift", "std", "runtime", "threads"] }
 wasmtime-wasi = "33.0.0"
 whisper-lib = { path = "../whisper-lib" }

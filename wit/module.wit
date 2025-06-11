@@ -3,6 +3,7 @@ package whisper:module@1.0.0;
 world whisper-module {
     record msg {
         module-id: string,
+        command-id: u64,
         tx-id: u64,
         data: option<list<u8>>,
     }

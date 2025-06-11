@@ -11,6 +11,10 @@ mod remote;
 use whisper_lib::{envelope, protocol};
 
 fn main() {
+    pretty_env_logger::formatted_builder()
+    .filter_level(log::LevelFilter::Info)
+    .init(); 
+
     let (dispatch_in_send, dispatch_in_recv)= mpsc::channel::<(protocol::Request, mpsc::Sender::<Vec<u8>>)>(); 
 
     let mut threads: Vec<thread::JoinHandle<()>> = Vec::new();
@@ -141,7 +145,6 @@ fn main() {
             //let receiver = dispatch_out_recv;
 
             let (response_send, response_recv) = std::sync::mpsc::channel::<Vec<u8>>();
-
 
             loop {
                 let envelope = match remote.next_envelope() {

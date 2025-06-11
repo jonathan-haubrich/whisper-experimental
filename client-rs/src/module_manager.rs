@@ -1,15 +1,14 @@
 
-use log::info;
+use log::{info, warn};
 use wasmtime::component::{bindgen, ResourceTable};
 use wasmtime::*;
 use wasmtime_wasi::p2::{IoView, WasiCtx, WasiCtxBuilder, WasiView};
 
 use anyhow::Result;
 
-
 bindgen!({
     world: "whisper-module",
-    path: r#".\wit\module.wit"#,
+    path: r#"..\wit\module.wit"#,
 });
 
 pub struct ModuleManager {
@@ -71,6 +70,26 @@ impl ModuleManager {
         })
     }
 
+    pub fn add_modules(&mut self, path: &std::path::Path) -> Result<()> {
+        for dir_entry_result in std::fs::read_dir(path)? {
+            if let Ok(dir_entry) = dir_entry_result {
+                let module_path = dir_entry.path();
+                let has_wasm_extension = module_path.extension().map(|ext| ext == "wasm").unwrap_or(false);
+                if !has_wasm_extension {
+                    continue;
+                }
+
+                info!("Attempting to load module: {module_path:#?}");
+
+                if let Err(err) = self.add_module(&module_path) {
+                    warn!("Failed to load module [{}]: {err}", module_path.to_string_lossy());
+                }
+            }
+        }
+
+        Ok(())
+    }
+
     pub fn add_module(&mut self, path: &std::path::Path) -> Result<()> {
         let bytes = std::fs::read(path)?;
         
@@ -122,10 +141,13 @@ impl ModuleManager {
 
     pub fn call_module_command(&mut self, module: &str, command: &str, args: Vec<String>) -> Result<()> {
         info!("module: {module} command: {command}");
-        if let Some(binding) = self.bindings.get(module) {
-            info!("found bindings, calling call_handle_command");
-            let tx_id: u64 = rand::random();
-            binding.call_handle_command(&mut self.store, tx_id, command, &args)?;
+        match self.bindings.get(module) {
+            Some(binding) => {
+                info!("found bindings, calling call_handle_command");
+                let tx_id: u64 = rand::random();
+                binding.call_handle_command(&mut self.store, tx_id, command, &args)?;
+            },
+            None => return Err(anyhow::anyhow!("Module not found: {module}")),
         }
 
         Ok(())

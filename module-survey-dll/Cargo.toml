@@ -9,7 +9,7 @@ crate-type = ["cdylib"]
 [dependencies]
 pmr = { path = "../poor-mans-rpc" }
 rmp-serde = "1.3.0"
-windows = { version = "0.61.1", features = ["Win32_System_WindowsProgramming"] }
+windows = { version = "0.61.1", features = ["Win32_System_WindowsProgramming", "Win32_System_Com"] }
 
 [profile.dev]
 lto = "off"

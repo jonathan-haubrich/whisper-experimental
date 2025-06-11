@@ -1,0 +1,18 @@
+# [target.wasm32-wasip2]
+# rustflags = [
+#   #"-C", "target-feature=+atomics,+mutable-globals,+bulk-memory",
+#   "-C", "target-feature=+mutable-globals,+bulk-memory,+atomics",
+#   #"-C", "link-arg=--shared-memory",
+#   #"-C", "link-arg=-pthread",
+#   "-C", "link-arg=--max-memory=1073741824"
+# ]
+
+# [target.wasm32-unknown-unknown]
+# rustflags = [
+#   "-C", "target-feature=+atomics,+bulk-memory,+mutable-globals",
+#   #"-C", "link-arg=--shared-memory",
+#   "-C", "link-arg=--max-memory=1073741824"
+# ]
+
+# [unstable]
+# build-std = ["core", "alloc", "std"]
