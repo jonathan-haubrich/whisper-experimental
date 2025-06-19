@@ -4,3 +4,5 @@ __pycache__/
 client/modules/*/
 *.exe
 *.dll
+test_file_out
+*.bin

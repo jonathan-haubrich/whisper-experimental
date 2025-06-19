@@ -1,10 +1,14 @@
 
+use std::path::PathBuf;
+use std::u32;
+
 use log::{info, warn};
 use wasmtime::component::{bindgen, ResourceTable};
 use wasmtime::*;
 use wasmtime_wasi::p2::{IoView, WasiCtx, WasiCtxBuilder, WasiView};
 
 use anyhow::Result;
+use wasmtime_wasi::{DirPerms, FilePerms};
 
 bindgen!({
     world: "whisper-module",
@@ -36,11 +40,25 @@ impl WhisperModuleImports for MyState {
     }
 }
 
+fn get_filesystem_root() -> Result<std::path::PathBuf, std::io::Error> {
+    let current_dir = std::env::current_dir()?;
+
+    println!("current dir: {current_dir:#?}");
+
+    let root = current_dir.ancestors().last().unwrap();
+
+    println!("root: {root:#?}");
+    
+    Ok(PathBuf::from(root))
+}
+
 impl ModuleManager {
     pub fn new<F: Fn(Msg) + Send + 'static>(message_out_handler: F) -> Result<Self> {
         let mut config = Config::new();  
         config.wasm_component_model(true);  
         config.debug_info(true);
+        config.wasm_threads(true);
+        config.wasm_shared_everything_threads(true);
 
         let engine = Engine::new(&config)?;
         let mut linker = wasmtime::component::Linker::<MyState>::new(&engine);
@@ -56,6 +74,7 @@ impl ModuleManager {
                 ctx: builder
                     .inherit_network()
                     .inherit_stdio()
+                    .preopened_dir(r#"C:\"#, r#"/"#, DirPerms::all(), FilePerms::all())?
                     .build(),
                 table: ResourceTable::new(),
                 message_out_handler: Box::new(message_out_handler),
@@ -90,7 +109,7 @@ impl ModuleManager {
         Ok(())
     }
 
-    pub fn add_module(&mut self, path: &std::path::Path) -> Result<()> {
+    pub fn add_module(&mut self, path: &std::path::Path) -> Result<String> {
         let bytes = std::fs::read(path)?;
         
         let component = wasmtime::component::Component::new(&self.engine, bytes)?;
@@ -102,9 +121,9 @@ impl ModuleManager {
 
         info!("Added module with name: {name}");
 
-        self.bindings.insert(name, bindings);
+        self.bindings.insert(name.clone(), bindings);
 
-        Ok(())
+        Ok(name)
     }
 
     pub fn get_module_descriptors(&mut self) -> Result<Vec<ModuleDescriptor>> {
@@ -148,6 +167,20 @@ impl ModuleManager {
                 binding.call_handle_command(&mut self.store, tx_id, command, &args)?;
             },
             None => return Err(anyhow::anyhow!("Module not found: {module}")),
+        }
+
+        Ok(())
+    }
+
+    pub fn send_module_message(&mut self, module: &str, tx_id: u64, data: Vec<u8>) -> Result<(), u32> {
+        info!("module: {module} tx_id: {tx_id} len(data): {}", data.len());
+
+        match self.bindings.get(module) {
+            Some(binding) => {
+                info!("found bindings, calling call_message_in");
+                _ = binding.call_message_in(&mut self.store, tx_id, &data).or(Err(u32::MAX))?;
+            },
+            None => return Err(u32::MAX)
         }
 
         Ok(())

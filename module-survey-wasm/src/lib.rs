@@ -51,7 +51,6 @@ impl Guest for Survey {
         Ok(())
     }
     
-    #[allow(async_fn_in_trait)]
     fn get_module_data() -> Vec::<u8> {
         let bytes = include_bytes!(env!("MODULE_DLL_FILEPATH"));
 
