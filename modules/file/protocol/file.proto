@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package whisper.module.file;
+
+import "upload.proto";
+
+message File {
+    oneof Message {
+        whisper.module.file.upload.Upload upload = 1;
+    }
+}

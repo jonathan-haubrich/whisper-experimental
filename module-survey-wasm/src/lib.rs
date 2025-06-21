@@ -29,12 +29,6 @@ impl Guest for Survey {
     fn handle_command(tx_id:u64, command: String, args: Vec::<String>) {
         println!("tx_id {tx_id} command: {command} args: {args:?}");
 
-        let handle = std::thread::spawn(|| {
-            println!("Inside thread...");
-        });
-
-        let _ = handle.join();
-
         match command.as_str() {
             "hostname" => Survey::hostname(tx_id),
             _ => eprintln!("Unrecognized command: {command}"),

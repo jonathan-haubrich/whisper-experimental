@@ -98,7 +98,7 @@ fn main() -> anyhow::Result<()> {
     let handler_tx = tx.clone();
     let mut module_manager = ModuleManager::new(
         move |msg| {
-            info!("Received msg: {msg:#?}");
+            //info!("Received msg: {msg:#?}");
             let _ = handler_tx.send(msg);
         }
     )?;
@@ -123,11 +123,11 @@ fn main() -> anyhow::Result<()> {
         }
     }
 
-    info!("===== Calling: survey::hostname");
-    match module_manager.call_module_command("survey", "hostname", Vec::new()) {
-        Ok(_) => info!("Successfully called call_module_command"),
-        Err(err) => error!("Failed to call call_module_command: {err}")
-    }
+    // info!("===== Calling: survey::hostname");
+    // match module_manager.call_module_command("survey", "hostname", Vec::new()) {
+    //     Ok(_) => info!("Successfully called call_module_command"),
+    //     Err(err) => error!("Failed to call call_module_command: {err}")
+    // }
     
     loop {
         let line = read_line()?;
@@ -198,6 +198,7 @@ fn main() -> anyhow::Result<()> {
 
                         match rx.recv() {
                             Ok(msg) => {
+                                //println!("rx.recv msg: {msg:#?}");
                                 let Some(module_id) = module_ids.get(&msg.module_id) else {
                                     warn!("Received message from unmapped module id: {}", msg.module_id);
                                     break
@@ -208,7 +209,18 @@ fn main() -> anyhow::Result<()> {
                                     msg.tx_id,
                                     msg.data)?;
 
-                                info!("Got response:\n{response:#?}");
+                                if let Some(response) = response.response {
+                                    match response {
+                                        protocol::response::Response::Command(command_response) => {
+                                            if let Err(code) = module_manager.send_module_message(&module, msg.tx_id, command_response.data) {
+                                                error!("module_manager.send_module_message failed with: {code}");
+                                            }
+                                        },
+                                        _ => unreachable!()
+                                    }
+                                }
+
+                                //info!("Got response:\n{response:#?}");
                             },
                             Err(err) => {
                                 warn!("Failed to receive in receiver_thread: {err}");

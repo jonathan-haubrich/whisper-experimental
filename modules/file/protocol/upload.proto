@@ -1,0 +1,60 @@
+syntax = "proto3";
+
+package whisper.module.file.upload;
+
+message Upload {
+    oneof Message {
+        Request request = 1;
+        Response response = 2;
+    }
+
+    message Request {
+        oneof Message {
+            Begin begin = 1;
+            Chunk chunk = 2;
+            End end = 3;
+        }
+
+        message Begin {
+            uint64 tx_id = 1;
+            string dest = 2;
+            bytes chunk = 3;
+        }
+
+        message Chunk {
+            uint64 tx_id = 1;
+            uint64 seq_no = 2;
+            uint64 total = 3;
+            bytes chunk = 4;
+        }
+
+        message End {
+            uint64 tx_id = 1;
+        }
+    }
+
+    message Response {
+        oneof Message {
+            Begin begin = 1;
+            Chunk chunk = 2;
+            End end = 3;
+        }
+
+        message Begin {
+            uint64 tx_id = 1;
+            uint64 error = 2;
+        }
+
+        message Chunk {
+            uint64 tx_id = 1;
+            uint64 seq_no = 2;
+            uint64 error = 3;
+        }
+
+        message End {
+            uint64 tx_id = 1;
+            uint64 error = 2;
+        }
+    }
+
+}

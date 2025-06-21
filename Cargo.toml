@@ -4,15 +4,18 @@ members = [
     "client-rs",
     "core",
     "manifest-gen",
-    "memory-module", "module-file-wasm",
+    "memory-module",
+    "module-file-wasm",
     "module-survey-dll",
     "module-survey-wasm",
+    "modules/file/dll",
+    "modules/file/wasm",
     "poor-mans-rpc",
     "poor-mans-rpc-bindings",
     "poor-mans-rpc-dll",
     "poor-mans-rpc-test",
-    "test-binrw-enums"
-    , "whisper-lib"]
+    "test-binrw-enums",
+    "whisper-lib"]
 
 [profile.dev]
 lto = "off"

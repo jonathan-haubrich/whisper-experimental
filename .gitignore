@@ -6,3 +6,4 @@ client/modules/*/
 *.dll
 test_file_out
 *.bin
+test

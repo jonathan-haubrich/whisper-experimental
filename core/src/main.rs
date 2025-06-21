@@ -187,7 +187,4 @@ fn main() {
 
         threads.push(client_thread);
     }
-
-
-
 }
